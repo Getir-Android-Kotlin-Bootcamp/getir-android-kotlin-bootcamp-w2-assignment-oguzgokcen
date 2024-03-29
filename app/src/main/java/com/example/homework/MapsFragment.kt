@@ -43,11 +43,6 @@ class MapsFragment : Fragment(),OnMapReadyCallback{
     private var locationPermissionGranted = false
     lateinit var frameLayout:FrameLayout
     lateinit var cardView:View
-    private val callback = OnMapReadyCallback { googleMap ->
-        val sydney = LatLng(-34.0, 151.0)
-        googleMap.addMarker(MarkerOptions().position(sydney).title("Marker in Sydney"))
-        googleMap.moveCamera(CameraUpdateFactory.newLatLng(sydney))
-    }
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
