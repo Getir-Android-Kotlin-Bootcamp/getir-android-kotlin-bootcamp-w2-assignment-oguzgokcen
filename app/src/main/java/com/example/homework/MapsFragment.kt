@@ -9,6 +9,9 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
+import android.widget.TextClock
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -38,7 +41,8 @@ class MapsFragment : Fragment(),OnMapReadyCallback{
     private lateinit var currentLocation: Location
     lateinit var fusedLocationProviderClient:FusedLocationProviderClient
     private var locationPermissionGranted = false
-
+    lateinit var frameLayout:FrameLayout
+    lateinit var cardView:View
     private val callback = OnMapReadyCallback { googleMap ->
         val sydney = LatLng(-34.0, 151.0)
         googleMap.addMarker(MarkerOptions().position(sydney).title("Marker in Sydney"))
@@ -57,8 +61,8 @@ class MapsFragment : Fragment(),OnMapReadyCallback{
         val autocompleteFragment =
             childFragmentManager.findFragmentById(R.id.autocomplete_fragment)
                     as AutocompleteSupportFragment
-
-        autocompleteFragment.setPlaceFields(listOf(Place.Field.ID, Place.Field.NAME, Place.Field.LAT_LNG))
+        frameLayout= requireView().findViewById(R.id.frameCard)
+        autocompleteFragment.setPlaceFields(listOf(Place.Field.ID, Place.Field.NAME, Place.Field.LAT_LNG,Place.Field.ADDRESS))
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this.requireContext())
         val googleMap = childFragmentManager.findFragmentById(R.id.map) as SupportMapFragment?
         googleMap?.getMapAsync(this)
@@ -66,17 +70,13 @@ class MapsFragment : Fragment(),OnMapReadyCallback{
         lifecycleScope.launch {
             autocompleteFragment.placeSelectionEvents().collect { event ->
                 when (event) {
-                    is PlaceSelectionSuccess -> {Toast.makeText(
-                        this@MapsFragment.context,
-                        "Got place '${event.place.latLng}'",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    is PlaceSelectionSuccess -> {
                         val place = event.place
                         val latLng = place.latLng
                         val lat = latLng?.latitude
                         val lng = latLng?.longitude
                         val location = LatLng(lat!!, lng!!)
-                        googleMap?.getMapAsync(callPlaces(location))
+                        googleMap?.getMapAsync(callPlaces(location,place.address!!))
                     }
                     is PlaceSelectionError -> Toast.makeText(
                         this@MapsFragment.context,
@@ -86,7 +86,6 @@ class MapsFragment : Fragment(),OnMapReadyCallback{
                 }
             }
         }
-
         val registerForActivityLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
             if (isGranted) {
                 getCurrentLocation()
@@ -94,13 +93,18 @@ class MapsFragment : Fragment(),OnMapReadyCallback{
                 Toast.makeText(this.context,"Permission denied", Toast.LENGTH_SHORT).show()
             }
         }
-        getLocationPermission(registerForActivityLauncher)
+        if(locationPermissionGranted){
+            getCurrentLocation()
+        }else{
+            getLocationPermission(registerForActivityLauncher)
+        }
     }
 
-    private fun callPlaces(coordinate:LatLng):OnMapReadyCallback{
+    private fun callPlaces(coordinate:LatLng,name:String):OnMapReadyCallback{
         return OnMapReadyCallback { googleMap ->
-            googleMap.addMarker(MarkerOptions().position(coordinate).title("Selected Location"))
-            googleMap.moveCamera(CameraUpdateFactory.newLatLng(coordinate))
+            map?.addMarker(MarkerOptions().position(coordinate).title("Current Location"))
+            map?.moveCamera(CameraUpdateFactory.newLatLngZoom(coordinate,DEFAULT_ZOOM.toFloat()))
+            cardView.findViewById<TextView>(R.id.locationText).text = name
         }
     }
     override fun onMapReady(map: GoogleMap) {
@@ -112,16 +116,6 @@ class MapsFragment : Fragment(),OnMapReadyCallback{
 
     @SuppressLint("MissingPermission")
     private fun getCurrentLocation(){
-//        if (ActivityCompat.checkSelfPermission(
-//                this.requireContext(),
-//                Manifest.permission.ACCESS_FINE_LOCATION
-//            ) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
-//                this.requireContext(),
-//                Manifest.permission.ACCESS_COARSE_LOCATION
-//            ) != PackageManager.PERMISSION_GRANTED
-//        ){
-//            registerForActivityLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-//        }
         fusedLocationProviderClient.lastLocation.addOnCompleteListener { task ->
             if (task.isSuccessful && task.result != null) {
                 locationPermissionGranted = true
@@ -129,6 +123,10 @@ class MapsFragment : Fragment(),OnMapReadyCallback{
                 val location = LatLng(currentLocation.latitude, currentLocation.longitude)
                 map?.addMarker(MarkerOptions().position(location).title("Current Location"))
                 map?.moveCamera(CameraUpdateFactory.newLatLngZoom(location,DEFAULT_ZOOM.toFloat()))
+                //bring a dialog box that informs user
+                cardView = layoutInflater.inflate(R.layout.info_card, frameLayout, true)
+                cardView.findViewById<TextView>(R.id.locationText).text = "Latitude: ${currentLocation.latitude} \nLongitude: ${currentLocation.longitude}"
+
             }else{
                 Toast.makeText(
                     this@MapsFragment.context,
@@ -144,14 +142,14 @@ class MapsFragment : Fragment(),OnMapReadyCallback{
                 Manifest.permission.ACCESS_FINE_LOCATION)
             == PackageManager.PERMISSION_GRANTED) {
             locationPermissionGranted = true
+            getCurrentLocation()
         }else {
             registerForActivityLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
     }
 
     companion object {
-        private const val DEFAULT_ZOOM = 15
-        private const val PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 1
+        private const val DEFAULT_ZOOM = 20
     }
 
 }
