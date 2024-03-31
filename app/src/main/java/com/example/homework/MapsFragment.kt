@@ -3,6 +3,7 @@ package com.example.homework
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
+import android.location.Geocoder
 import android.location.Location
 import androidx.fragment.app.Fragment
 import android.os.Bundle
@@ -16,7 +17,6 @@ import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
@@ -24,6 +24,8 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.model.BitmapDescriptor
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
@@ -34,6 +36,7 @@ import com.google.android.libraries.places.ktx.widget.PlaceSelectionSuccess
 import com.google.android.libraries.places.ktx.widget.placeSelectionEvents
 import com.google.android.libraries.places.widget.AutocompleteSupportFragment
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 class MapsFragment : Fragment(),OnMapReadyCallback{
     private var map: GoogleMap? = null
@@ -62,6 +65,7 @@ class MapsFragment : Fragment(),OnMapReadyCallback{
         val googleMap = childFragmentManager.findFragmentById(R.id.map) as SupportMapFragment?
         googleMap?.getMapAsync(this)
 
+        // lifecycleScope is a built-in Kotlin coroutine scope that is bound to the lifecycle of the search fragment
         lifecycleScope.launch {
             autocompleteFragment.placeSelectionEvents().collect { event ->
                 when (event) {
@@ -81,6 +85,8 @@ class MapsFragment : Fragment(),OnMapReadyCallback{
                 }
             }
         }
+
+        // to check if the user has granted permission to access the location
         val registerForActivityLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
             if (isGranted) {
                 getCurrentLocation()
@@ -88,6 +94,8 @@ class MapsFragment : Fragment(),OnMapReadyCallback{
                 Toast.makeText(this.context,"Permission denied", Toast.LENGTH_SHORT).show()
             }
         }
+
+        // check if the user has granted permission to access the location
         if(locationPermissionGranted){
             getCurrentLocation()
         }else{
@@ -95,11 +103,12 @@ class MapsFragment : Fragment(),OnMapReadyCallback{
         }
     }
 
-    private fun callPlaces(coordinate:LatLng,name:String):OnMapReadyCallback{
+    //move camera and add marker to selected place
+    private fun callPlaces(coordinate: LatLng, address: String):OnMapReadyCallback{
         return OnMapReadyCallback { googleMap ->
             map?.addMarker(MarkerOptions().position(coordinate).title("Current Location"))
             map?.moveCamera(CameraUpdateFactory.newLatLngZoom(coordinate,DEFAULT_ZOOM.toFloat()))
-            cardView.findViewById<TextView>(R.id.locationText).text = name
+            cardView.findViewById<TextView>(R.id.locationText).text = address
         }
     }
     override fun onMapReady(map: GoogleMap) {
@@ -109,18 +118,25 @@ class MapsFragment : Fragment(),OnMapReadyCallback{
 
     }
 
+    //get the current location of the user
     @SuppressLint("MissingPermission")
     private fun getCurrentLocation(){
+        // after user granted permission, get the current location of the user
         fusedLocationProviderClient.lastLocation.addOnCompleteListener { task ->
             if (task.isSuccessful && task.result != null) {
                 locationPermissionGranted = true
                 currentLocation= task.result
                 val location = LatLng(currentLocation.latitude, currentLocation.longitude)
-                map?.addMarker(MarkerOptions().position(location).title("Current Location"))
+                map?.addMarker(MarkerOptions().position(location).title("Current Location").icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)))
                 map?.moveCamera(CameraUpdateFactory.newLatLngZoom(location,DEFAULT_ZOOM.toFloat()))
                 //bring a dialog box that informs user
                 cardView = layoutInflater.inflate(R.layout.info_card, frameLayout, true)
-                cardView.findViewById<TextView>(R.id.locationText).text = "Latitude: ${currentLocation.latitude} \nLongitude: ${currentLocation.longitude}"
+                val geocoder = Geocoder(requireContext(), Locale.getDefault())
+                val addressList = geocoder.getFromLocation(currentLocation.latitude,currentLocation.longitude,1)
+                val address = addressList?.get(0)?.getAddressLine(0)
+                if (address != null){
+                    cardView.findViewById<TextView>(R.id.locationText).text = address
+                }
 
             }else{
                 Toast.makeText(
@@ -132,6 +148,7 @@ class MapsFragment : Fragment(),OnMapReadyCallback{
         }
     }
 
+    // to get permission from user if not granted
     private fun getLocationPermission(registerForActivityLauncher: ActivityResultLauncher<String>){
         if (ActivityCompat.checkSelfPermission(this.requireContext(),
                 Manifest.permission.ACCESS_FINE_LOCATION)
@@ -142,9 +159,8 @@ class MapsFragment : Fragment(),OnMapReadyCallback{
             registerForActivityLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
     }
-
     companion object {
-        private const val DEFAULT_ZOOM = 20
+        private const val DEFAULT_ZOOM = 19
     }
 
 }
