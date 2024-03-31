@@ -11,7 +11,6 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.TextClock
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
@@ -24,7 +23,6 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -87,7 +85,10 @@ class MapsFragment : Fragment(),OnMapReadyCallback{
         }
 
         // to check if the user has granted permission to access the location
-        val registerForActivityLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
+        val registerForActivityLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+            val isGranted = permissions.entries.all{
+                it.value == true
+            }
             if (isGranted) {
                 getCurrentLocation()
             } else {
@@ -149,14 +150,14 @@ class MapsFragment : Fragment(),OnMapReadyCallback{
     }
 
     // to get permission from user if not granted
-    private fun getLocationPermission(registerForActivityLauncher: ActivityResultLauncher<String>){
+    private fun getLocationPermission(registerForActivityLauncher: ActivityResultLauncher<Array<String>>){
         if (ActivityCompat.checkSelfPermission(this.requireContext(),
                 Manifest.permission.ACCESS_FINE_LOCATION)
             == PackageManager.PERMISSION_GRANTED) {
             locationPermissionGranted = true
             getCurrentLocation()
         }else {
-            registerForActivityLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            registerForActivityLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION))
         }
     }
     companion object {
